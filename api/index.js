@@ -21,6 +21,11 @@ function getBeijingTime() {
     return new Date(utc + (3600000 * offset));
 }
 
+function getTodayString() {
+    const bjNow = getBeijingTime();
+    return bjNow.toISOString().split('T')[0];
+}
+
 function convertToBeijingDisplay(utcString) {
     if (!utcString) return '';
     try {
@@ -64,7 +69,32 @@ const espnLeagueMap = {
     '6': 'uefa.champions'
 };
 
-// ESPN Team ID mapping for top clubs
+// Team ID mapping for Football-Data.org (more reliable for squads)
+const footballDataTeamMap = {
+    'manchester-city': { id: 65, name: 'Manchester City' },
+    'liverpool': { id: 64, name: 'Liverpool' },
+    'arsenal': { id: 57, name: 'Arsenal' },
+    'chelsea': { id: 49, name: 'Chelsea' },
+    'manchester-united': { id: 66, name: 'Manchester United' },
+    'tottenham-hotspur': { id: 73, name: 'Tottenham Hotspur' },
+    'newcastle-united': { id: 67, name: 'Newcastle United' },
+    'brighton-hove-albion': { id: 58, name: 'Brighton & Hove Albion' },
+    'aston-villa': { id: 55, name: 'Aston Villa' },
+    'real-madrid': { id: 86, name: 'Real Madrid' },
+    'barcelona': { id: 81, name: 'Barcelona' },
+    'atletico-madrid': { id: 78, name: 'Atlético Madrid' },
+    'inter-milan': { id: 109, name: 'Inter Milan' },
+    'ac-milan': { id: 108, name: 'AC Milan' },
+    'juventus': { id: 109, name: 'Juventus' },
+    'napoli': { id: 113, name: 'Napoli' },
+    'bayern-munich': { id: 5, name: 'Bayern Munich' },
+    'borussia-dortmund': { id: 4, name: 'Borussia Dortmund' },
+    'paris-saint-germain': { id: 66, name: 'Paris Saint-Germain' },
+    'marseille': { id: 516, name: 'Marseille' },
+    'lyon': { id: 511, name: 'Lyon' }
+};
+
+// ESPN Team ID mapping (for standings search fallback)
 const teamIdMap = {
     'arsenal': { id: 359, league: 'eng.1' },
     'manchester-city': { id: 382, league: 'eng.1' },
@@ -344,10 +374,40 @@ app.get('/api/assists/:leagueId', async (req, res) => {
     } catch (error) { res.json({ success: false, data: [] }); }
 });
 
-// Team Details API
+// Team Details API - Using ESPN + Football-Data.org
 app.get('/api/team/:teamId', async (req, res) => {
     try {
         const { teamId } = req.params;
+        
+        // First try Football-Data.org for reliable team info
+        const fdTeam = footballDataTeamMap[teamId.toLowerCase()];
+        
+        if (fdTeam) {
+            const url = `https://api.football-data.org/v4/teams/${fdTeam.id}`;
+            const response = await axios.get(url, { 
+                timeout: 10000,
+                headers: { 'X-Auth-Token': '' }
+            }).catch(() => null);
+            
+            if (response && response.data) {
+                const team = response.data;
+                return res.json({
+                    success: true,
+                    data: {
+                        id: team.id,
+                        name: team.name,
+                        nameCn: translateTeam(team.name),
+                        logo: team.crest,
+                        location: team.venue || team.address,
+                        league: team.tickerCode || '',
+                        record: null,
+                        stats: []
+                    }
+                });
+            }
+        }
+        
+        // Fallback to ESPN
         let teamInfo = teamIdMap[teamId.toLowerCase()];
         
         if (!teamInfo) {
@@ -358,9 +418,10 @@ app.get('/api/team/:teamId', async (req, res) => {
             teamInfo = { id: teams[0].id, league: teams[0].league?.abbreviation ? `soccer.${teams[0].league.abbreviation.toLowerCase()}` : 'eng.1' };
         }
         
-        const url = `https://site.api.espn.com/apis/site/v2/soccer/${teamInfo.league}/teams/${teamInfo.id}`;
+        // Use correct ESPN endpoint
+        const url = `https://site.api.espn.com/apis/v2/sports/soccer/${teamInfo.league}/teams/${teamInfo.id}?lang=en&region=us`;
         const response = await axios.get(url, { timeout: 10000 });
-        const team = response.data.team || response.data;
+        const team = response.data;
         
         const result = {
             id: team.id,
@@ -380,10 +441,47 @@ app.get('/api/team/:teamId', async (req, res) => {
     }
 });
 
-// Team Squad API
+// Team Squad API - Using Football-Data.org (more reliable)
 app.get('/api/team/:teamId/squad', async (req, res) => {
     try {
         const { teamId } = req.params;
+        
+        // First try Football-Data.org
+        const fdTeam = footballDataTeamMap[teamId.toLowerCase()];
+        
+        if (fdTeam) {
+            const url = `https://api.football-data.org/v4/teams/${fdTeam.id}`;
+            const response = await axios.get(url, { 
+                timeout: 10000,
+                headers: { 'X-Auth-Token': '' }
+            }).catch(() => null);
+            
+            if (response && response.data && response.data.squad) {
+                const squad = response.data.squad.map(player => ({
+                    id: player.id,
+                    name: player.name,
+                    nameCn: translatePlayer(player.name),
+                    number: player.shirtNumber || '-',
+                    position: translatePosition(player.position),
+                    age: player.dateOfBirth ? new Date().getFullYear() - new Date(player.dateOfBirth).getFullYear() : null,
+                    birthDate: player.dateOfBirth,
+                    height: player.height,
+                    weight: player.weight,
+                    nationality: player.nationality,
+                    photo: null,
+                    value: null,
+                    goals: 0,
+                    assists: 0
+                })).sort((a, b) => {
+                    const posOrder = { 'Goalkeeper': 0, 'Defender': 1, 'Midfielder': 2, 'Forward': 3 };
+                    return (posOrder[a.position] || 99) - (posOrder[b.position] || 99);
+                });
+                
+                return res.json({ success: true, data: squad });
+            }
+        }
+        
+        // Fallback to ESPN with correct endpoint
         let teamInfo = teamIdMap[teamId.toLowerCase()];
         
         if (!teamInfo) {
@@ -394,7 +492,8 @@ app.get('/api/team/:teamId/squad', async (req, res) => {
             teamInfo = { id: teams[0].id, league: teams[0].league?.abbreviation ? `soccer.${teams[0].league.abbreviation.toLowerCase()}` : 'eng.1' };
         }
         
-        const url = `https://site.api.espn.com/apis/site/v2/soccer/${teamInfo.league}/teams/${teamInfo.id}/roster`;
+        // Use correct ESPN roster endpoint
+        const url = `https://site.api.espn.com/apis/v2/sports/soccer/${teamInfo.league}/teams/${teamInfo.id}/roster?lang=en&region=us`;
         const response = await axios.get(url, { timeout: 10000 });
         
         const athletes = response.data.athletes || [];
@@ -425,12 +524,55 @@ app.get('/api/team/:teamId/squad', async (req, res) => {
     }
 });
 
-// Team Schedule API
+// Team Schedule API - Using ESPN + Football-Data.org
 app.get('/api/team/:teamId/schedule', async (req, res) => {
     try {
         const { teamId } = req.params;
         const limit = parseInt(req.query.limit) || 20;
         
+        // First try Football-Data.org
+        const fdTeam = footballDataTeamMap[teamId.toLowerCase()];
+        
+        if (fdTeam) {
+            try {
+                const currentYear = new Date().getFullYear();
+                const fdUrl = `https://api.football-data.org/v4/teams/${fdTeam.id}/matches?dateFrom=${new Date().toISOString().split('T')[0]}&dateTo=${new Date(currentYear + 1, 11, 31).toISOString().split('T')[0]}&limit=${limit}`;
+                const response = await axios.get(fdUrl, { 
+                    timeout: 10000,
+                    headers: { 'X-Auth-Token': '' }
+                });
+                
+                if (response.data && response.data.matches) {
+                    const matches = response.data.matches.slice(0, limit).map(m => ({
+                        id: m.id,
+                        date: m.utcDate,
+                        dateCn: convertToBeijingDisplay(m.utcDate),
+                        league: m.competition.name,
+                        status: m.status === 'FINISHED' ? '已完成' : (m.status === 'IN_PLAY' ? '进行中' : '未开始'),
+                        statusCn: m.status === 'FINISHED' ? '已结束' : (m.status === 'IN_PLAY' ? '进行中' : '未开始'),
+                        homeTeam: {
+                            id: m.homeTeam.id,
+                            name: translateTeam(m.homeTeam.name),
+                            logo: m.homeTeam.crest,
+                            score: m.score.fullTime.home ?? '-'
+                        },
+                        awayTeam: {
+                            id: m.awayTeam.id,
+                            name: translateTeam(m.awayTeam.name),
+                            logo: m.awayTeam.crest,
+                            score: m.score.fullTime.away ?? '-'
+                        },
+                        isHome: true,
+                        result: m.status === 'FINISHED' ? `${m.score.fullTime.home}-${m.score.fullTime.away}` : (m.status === 'IN_PLAY' ? '进行中' : 'VS')
+                    }));
+                    return res.json({ success: true, data: matches });
+                }
+            } catch (e) {
+                console.log('Football-Data.org schedule failed, trying ESPN:', e.message);
+            }
+        }
+        
+        // Fallback to ESPN with correct endpoint
         let teamInfo = teamIdMap[teamId.toLowerCase()];
         
         if (!teamInfo) {
@@ -441,7 +583,8 @@ app.get('/api/team/:teamId/schedule', async (req, res) => {
             teamInfo = { id: teams[0].id, league: teams[0].league?.abbreviation ? `soccer.${teams[0].league.abbreviation.toLowerCase()}` : 'eng.1' };
         }
         
-        const url = `https://site.api.espn.com/apis/site/v2/soccer/${teamInfo.league}/teams/${teamInfo.id}/schedule?limit=${limit}`;
+        // Use correct ESPN schedule endpoint
+        const url = `https://site.api.espn.com/apis/v2/sports/soccer/${teamInfo.league}/teams/${teamInfo.id}/schedule?lang=en&region=us&limit=${limit}`;
         const response = await axios.get(url, { timeout: 10000 });
         
         const events = response.data.events || [];
