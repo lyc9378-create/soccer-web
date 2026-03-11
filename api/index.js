@@ -64,6 +64,41 @@ const espnLeagueMap = {
     '6': 'uefa.champions'
 };
 
+// ESPN Team ID mapping for top clubs
+const teamIdMap = {
+    'arsenal': { id: 359, league: 'eng.1' },
+    'manchester-city': { id: 382, league: 'eng.1' },
+    'manchester-united': { id: 360, league: 'eng.1' },
+    'liverpool': { id: 364, league: 'eng.1' },
+    'chelsea': { id: 363, league: 'eng.1' },
+    'tottenham-hotspur': { id: 367, league: 'eng.1' },
+    'newcastle-united': { id: 366, league: 'eng.1' },
+    'brighton-hove-albion': { id: 331, league: 'eng.1' },
+    'aston-villa': { id: 327, league: 'eng.1' },
+    'real-madrid': { id: 418, league: 'esp.1' },
+    'barcelona': { id: 401, league: 'esp.1' },
+    'atletico-madrid': { id: 417, league: 'esp.1' },
+    'inter-milan': { id: 109, league: 'ita.1' },
+    'ac-milan': { id: 108, league: 'ita.1' },
+    'juventus': { id: 115, league: 'ita.1' },
+    'napoli': { id: 113, league: 'ita.1' },
+    'bayern-munich': { id: 132, league: 'ger.1' },
+    'borussia-dortmund': { id: 124, league: 'ger.1' },
+    'paris-saint-germain': { id: 584, league: 'fra.1' },
+    'marseille': { id: 516, league: 'fra.1' },
+    'lyon': { id: 511, league: 'fra.1' }
+};
+
+// Position translation
+const positionMap = {
+    'GK': '门将', 'DEF': '后卫', 'MID': '中场', 'FWD': '前锋',
+    'Goalkeeper': '门将', 'Defender': '后卫', 'Midfielder': '中场', 'Forward': '前锋'
+};
+
+function translatePosition(pos) {
+    return positionMap[pos] || pos || '未知';
+}
+
 const teamTranslations = {
   "Arsenal": "阿森纳", "Aston Villa": "阿斯顿维拉", "Bournemouth": "伯恩茅斯", "AFC Bournemouth": "伯恩茅斯",
   "Brentford": "布伦特福德", "Brighton & Hove Albion": "布莱顿", "Chelsea": "切尔西", "Crystal Palace": "水晶宫",
@@ -208,7 +243,9 @@ app.get('/api/matches', async (req, res) => {
             id: match.match_id,
             time: convertToBeijingDisplay(match.start_play),
             league: match.competition_name || '',
+            homeTeamId: match.team_A_id,
             homeTeam: translateTeam(match.team_A_name),
+            awayTeamId: match.team_B_id,
             awayTeam: translateTeam(match.team_B_name),
             homeLogo: match.team_A_logo,
             awayLogo: match.team_B_logo,
@@ -257,6 +294,7 @@ app.get('/api/standings/:leagueId', async (req, res) => {
             const getStat = (name) => stats.find(s => s.name === name)?.value || 0;
             return {
                 rank: getStat('rank'),
+                teamId: entry.team?.id,
                 team: translateTeam(entry.team.displayName),
                 logo: entry.team.logos?.[0]?.href,
                 played: getStat('gamesPlayed'),
@@ -304,6 +342,146 @@ app.get('/api/assists/:leagueId', async (req, res) => {
         }));
         res.json({ success: true, data: assists });
     } catch (error) { res.json({ success: false, data: [] }); }
+});
+
+// Team Details API
+app.get('/api/team/:teamId', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        let teamInfo = teamIdMap[teamId.toLowerCase()];
+        
+        if (!teamInfo) {
+            const searchUrl = `https://site.api.espn.com/apis/site/v2/search?query=${encodeURIComponent(teamId)}&sport=soccer`;
+            const searchRes = await axios.get(searchUrl, { timeout: 10000 });
+            const teams = searchRes.data.teams || [];
+            if (teams.length === 0) return res.json({ success: false, data: null, message: '球队未找到' });
+            teamInfo = { id: teams[0].id, league: teams[0].league?.abbreviation ? `soccer.${teams[0].league.abbreviation.toLowerCase()}` : 'eng.1' };
+        }
+        
+        const url = `https://site.api.espn.com/apis/site/v2/soccer/${teamInfo.league}/teams/${teamInfo.id}`;
+        const response = await axios.get(url, { timeout: 10000 });
+        const team = response.data.team || response.data;
+        
+        const result = {
+            id: team.id,
+            name: team.displayName,
+            nameCn: translateTeam(team.displayName),
+            logo: team.logos?.[0]?.href || team.logo,
+            location: team.location,
+            league: teamInfo.league,
+            record: team.record || null,
+            stats: team.stats || []
+        };
+        
+        res.json({ success: true, data: result });
+    } catch (error) { 
+        console.error('Team details error:', error.message);
+        res.json({ success: false, data: null, message: '获取球队信息失败' }); 
+    }
+});
+
+// Team Squad API
+app.get('/api/team/:teamId/squad', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        let teamInfo = teamIdMap[teamId.toLowerCase()];
+        
+        if (!teamInfo) {
+            const searchUrl = `https://site.api.espn.com/apis/site/v2/search?query=${encodeURIComponent(teamId)}&sport=soccer`;
+            const searchRes = await axios.get(searchUrl, { timeout: 10000 });
+            const teams = searchRes.data.teams || [];
+            if (teams.length === 0) return res.json({ success: false, data: [], message: '球队未找到' });
+            teamInfo = { id: teams[0].id, league: teams[0].league?.abbreviation ? `soccer.${teams[0].league.abbreviation.toLowerCase()}` : 'eng.1' };
+        }
+        
+        const url = `https://site.api.espn.com/apis/site/v2/soccer/${teamInfo.league}/teams/${teamInfo.id}/roster`;
+        const response = await axios.get(url, { timeout: 10000 });
+        
+        const athletes = response.data.athletes || [];
+        const squad = athletes.map(player => ({
+            id: player.id,
+            name: player.displayName,
+            nameCn: translatePlayer(player.displayName),
+            number: player.jersey || player.alternateJerseys?.[0] || '-',
+            position: translatePosition(player.position?.abbreviation || player.position?.name),
+            age: player.age,
+            birthDate: player.birthDate || null,
+            height: player.height,
+            weight: player.weight,
+            nationality: player.country?.abbreviation || player.country?.name || '',
+            photo: player.headshot?.href || player.image || player.photo,
+            value: player.value || null,
+            goals: player.stats?.find(s => s.name === 'goals')?.value || 0,
+            assists: player.stats?.find(s => s.name === 'assists')?.value || 0
+        })).sort((a, b) => {
+            const posOrder = { '门将': 0, '后卫': 1, '中场': 2, '前锋': 3 };
+            return (posOrder[a.position] || 99) - (posOrder[b.position] || 99);
+        });
+        
+        res.json({ success: true, data: squad });
+    } catch (error) { 
+        console.error('Team squad error:', error.message);
+        res.json({ success: false, data: [], message: '获取阵容失败' }); 
+    }
+});
+
+// Team Schedule API
+app.get('/api/team/:teamId/schedule', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const limit = parseInt(req.query.limit) || 20;
+        
+        let teamInfo = teamIdMap[teamId.toLowerCase()];
+        
+        if (!teamInfo) {
+            const searchUrl = `https://site.api.espn.com/apis/site/v2/search?query=${encodeURIComponent(teamId)}&sport=soccer`;
+            const searchRes = await axios.get(searchUrl, { timeout: 10000 });
+            const teams = searchRes.data.teams || [];
+            if (teams.length === 0) return res.json({ success: false, data: [], message: '球队未找到' });
+            teamInfo = { id: teams[0].id, league: teams[0].league?.abbreviation ? `soccer.${teams[0].league.abbreviation.toLowerCase()}` : 'eng.1' };
+        }
+        
+        const url = `https://site.api.espn.com/apis/site/v2/soccer/${teamInfo.league}/teams/${teamInfo.id}/schedule?limit=${limit}`;
+        const response = await axios.get(url, { timeout: 10000 });
+        
+        const events = response.data.events || [];
+        const schedule = events.map(event => {
+            const competition = event.competition;
+            const homeTeam = competition.competitors?.find(c => c.homeAway === 'home');
+            const awayTeam = competition.competitors?.find(c => c.homeAway === 'away');
+            const isHome = homeTeam?.team?.id == teamInfo.id;
+            
+            return {
+                id: event.id,
+                date: competition.date,
+                dateCn: convertToBeijingDisplay(competition.date),
+                league: competition.league?.name || competition.tournament?.name || '',
+                status: competition.status?.type?.description || '未开始',
+                statusCn: getStatus(competition.status?.type?.description),
+                homeTeam: {
+                    id: homeTeam?.team?.id,
+                    name: translateTeam(homeTeam?.team?.displayName),
+                    logo: homeTeam?.team?.logo || homeTeam?.team?.logos?.[0]?.href,
+                    score: homeTeam?.score
+                },
+                awayTeam: {
+                    id: awayTeam?.team?.id,
+                    name: translateTeam(awayTeam?.team?.displayName),
+                    logo: awayTeam?.team?.logo || awayTeam?.team?.logos?.[0]?.href,
+                    score: awayTeam?.score
+                },
+                isHome: isHome,
+                result: competition.status?.type?.description === 'STATUS_FINAL' 
+                    ? `${homeTeam?.score}-${awayTeam?.score}` 
+                    : (competition.status?.type?.description === 'STATUS_IN_PROGRESS' ? '进行中' : 'VS')
+            };
+        });
+        
+        res.json({ success: true, data: schedule });
+    } catch (error) { 
+        console.error('Team schedule error:', error.message);
+        res.json({ success: false, data: [], message: '获取赛程失败' }); 
+    }
 });
 
 module.exports = app;
