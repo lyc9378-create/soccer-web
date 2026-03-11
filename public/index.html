@@ -96,6 +96,7 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
+        /* Matches */
         .match-card {
             display: grid;
             grid-template-columns: 120px 1fr 120px;
@@ -144,6 +145,7 @@
             color: var(--loader);
         }
 
+        /* News */
         .news-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -171,6 +173,7 @@
         .news-title { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; line-height: 1.4; }
         .news-desc { font-size: 0.9rem; color: var(--loader); line-height: 1.5; flex: 1; }
 
+        /* Sidebar Tables */
         .sidebar-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .sidebar-table th { text-align: left; padding: 0.75rem 0.5rem; border-bottom: 2px solid var(--border); color: var(--loader); }
         .sidebar-table td { padding: 0.75rem 0.5rem; border-bottom: 1px solid var(--border); }
@@ -236,6 +239,7 @@
         let refreshTimer = null;
         let countdown = 60;
 
+        // Theme Toggle
         const themeBtn = document.getElementById('theme-toggle');
         themeBtn.onclick = () => {
             const currentTheme = document.body.getAttribute('data-theme');
@@ -249,6 +253,7 @@
             themeBtn.textContent = '☀️ 日间模式';
         }
 
+        // Refresh Toggle
         const refreshBtn = document.getElementById('refresh-toggle');
         refreshBtn.onclick = () => {
             autoRefresh = !autoRefresh;
@@ -307,6 +312,7 @@
                                     <div class="team-name">${m.awayTeam}</div>
                                 </div>
                             </div>
+                            <!-- 进球事件详情 -->
                             ${(m.eventsA && m.eventsA.length > 0 || m.eventsB && m.eventsB.length > 0) ? `
                             <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed var(--border); display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--loader);">
                                 <div style="flex: 1; text-align: left;">${m.eventsA.map(e => `<div>⚽ ${e}</div>`).join('')}</div>
@@ -327,18 +333,18 @@
             btn.textContent = '⏳ 加载中...';
             btn.disabled = true;
             try {
-                const res = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/news?limit=15'));
-                const data = await res.json();
-                const articles = data.articles || [];
+                const res = await fetch('/api/news');
+                const json = await res.json();
+                const articles = json.data || [];
                 container.innerHTML = articles.map(a => `
-                    <div class="card news-card" onclick="window.open('${a.links?.web?.href}', '_blank')">
+                    <div class="card news-card" onclick="window.open('${a.url}', '_blank')">
                         <div>
-                            <span class="news-tag">${a.byline || 'ESPN'}</span>
-                            <h3 class="news-title">${a.headline || a.title}</h3>
-                            <p class="news-desc">${a.description || '点击查看详情...'}</p>
+                            <span class="news-tag">${a.player || 'ESPN'}</span>
+                            <h3 class="news-title">${a.title}</h3>
+                            <p class="news-desc">${a.desc || '点击查看详情...'}</p>
                         </div>
                         <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary);">评分: 荐</span>
+                            <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary);">评分: ${a.rating || '荐'}</span>
                             <span style="font-size: 0.8rem; color: var(--loader);">详情 →</span>
                         </div>
                     </div>
@@ -380,6 +386,7 @@
             if (id === '6') { container.innerHTML = '<div class="loader">杯赛暂无统计</div>'; return; }
             try {
                 let html = '';
+                // 射手榜
                 const res = await fetch(`/api/scorers/${id}`);
                 const json = await res.json();
                 if (json.success && json.data.length > 0) {
@@ -398,6 +405,7 @@
                     html += `</tbody></table></div>`;
                 }
 
+                // 助攻榜
                 const aRes = await fetch(`/api/assists/${id}`);
                 const aJson = await aRes.json();
                 if (aJson.success && aJson.data.length > 0) {
