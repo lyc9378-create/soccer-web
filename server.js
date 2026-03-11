@@ -315,4 +315,5 @@ app.get('/api/assists/:leagueId', async (req, res) => {
     } catch (error) { res.json({ success: false, data: [] }); }
 });
 
-app.listen(PORT, () => console.log(`Soccer API is running on http://localhost:${PORT}`));
+// Vercel serverless export
+module.exports = app;
