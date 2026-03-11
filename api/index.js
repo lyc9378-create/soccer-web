@@ -21,11 +21,6 @@ function getBeijingTime() {
     return new Date(utc + (3600000 * offset));
 }
 
-function getTodayString() {
-    const bjNow = getBeijingTime();
-    return bjNow.toISOString().split('T')[0];
-}
-
 function convertToBeijingDisplay(utcString) {
     if (!utcString) return '';
     try {
@@ -105,7 +100,7 @@ const teamTranslations = {
   "Le Havre": "勒阿弗尔", "Nantes": "南特", "Sporting CP": "葡萄牙体育", "Benfica": "本菲卡", "FC Porto": "波尔图",
   "Ajax": "阿贾克斯", "PSV Eindhoven": "埃因霍温", "Feyenoord": "费耶诺德", "Celtic": "凯尔特人",
   "Rangers": "流浪者", "Red Bull Salzburg": "萨尔茨堡红牛", "RB Salzburg": "萨尔茨堡红牛",
-  "Galatasaray": "加拉 "Fenerbahce": "费塔萨雷",内巴切", "Besiktas": "贝西克塔斯", "Club Brugge": "布鲁日",
+  "Galatasaray": "加拉塔萨雷", "Fenerbahce": "费内巴切", "Besiktas": "贝西克塔斯", "Club Brugge": "布鲁日",
   "Shakhtar Donetsk": "顿涅茨克矿工", "Dinamo Zagreb": "萨格勒布迪纳摩", "Sparta Prague": "布拉格斯巴达",
   "Young Boys": "伯尔尼年轻人"
 };
@@ -228,7 +223,6 @@ app.get('/api/matches', async (req, res) => {
 
 app.get('/api/news', async (req, res) => {
     try {
-        // Use ESPN News API - Premier League only
         const url = 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/news?limit=15';
         const response = await axios.get(url, { timeout: 8000 });
         const articles = response.data.articles || [];
@@ -312,5 +306,4 @@ app.get('/api/assists/:leagueId', async (req, res) => {
     } catch (error) { res.json({ success: false, data: [] }); }
 });
 
-// Vercel serverless export
 module.exports = app;
