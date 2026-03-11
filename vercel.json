@@ -16,10 +16,11 @@
       "dest": "/api/index.js"
     },
     {
-      "handle": "filesystem"
+      "src": "/team.html",
+      "dest": "/public/team.html"
     },
     {
-      "src": "/(.*)",
+      "src": "/.*",
       "dest": "/public/index.html"
     }
   ]
