@@ -35,13 +35,14 @@
         .match-team { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
         .team-logo { width: 48px; height: 48px; object-fit: contain; cursor: pointer; }
         .team-name { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; cursor: pointer; }
+        .team-name:hover, .team-logo:hover { opacity: 0.8; }
         .match-info { display: flex; flex-direction: column; gap: 0.25rem; }
         .match-score { font-size: 2rem; font-weight: 800; color: var(--primary); font-family: 'Monaco', monospace; }
         .match-meta { font-size: 0.8rem; color: var(--loader); }
         .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
         .news-card { cursor: pointer; transition: transform 0.2s; display: flex; flex-direction: column; }
         .news-card:hover { transform: translateY(-3px); border-color: var(--primary); }
-        .news-tag { font-size: 0.75rem; background: var(--bg); padding: 0.2rem 0.5rem; border-radius: margin-bottom:  4px;0.75rem; display: inline-block; }
+        .news-tag { font-size: 0.75rem; background: var(--bg); padding: 0.2rem 0.5rem; border-radius: 4px; margin-bottom: 0.75rem; display: inline-block; }
         .news-title { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; line-height: 1.4; }
         .news-desc { font-size: 0.9rem; color: var(--loader); line-height: 1.5; flex: 1; }
         .sidebar-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -66,7 +67,7 @@
     </header>
     <div class="container">
         <main>
-            <div class="section-title">🕒 即时战报 <span id="match-count" style="font-size: 0.9rem; font-weight: 400; color: var(--loader); margin-left: 1rem;"></span></div>
+            <div class="section-title 即时战报">🕒 <span id="match-count" style="font-size: 0.9rem; font-weight: 400; color: var(--loader); margin-left: 1rem;"></span></div>
             <div id="matches-container"></div>
             <div class="section-title" style="margin-top: 3rem;">
                 <span>📰 今日头条</span>
